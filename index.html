@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#212121">
+<title>CatGPT</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { display: flex; height: 100vh; height: 100dvh; background: #212121; color: #ececec;
+         font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  aside { width: 260px; flex-shrink: 0; background: #171717; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  aside.hidden { display: none; }
+  .side-btn, .chat-item { text-align: left; padding: 8px 10px; border-radius: 8px; font-size: 14px; }
+  .side-btn:hover, .chat-item:hover, .chat-item.active { background: #2a2a2a; }
+  #history { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .chat-item { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex-shrink: 0; }
+  .label { font-size: 12px; color: #8e8e8e; padding: 8px 10px 0; }
+
+  main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 18px; font-weight: 600; }
+  header button { padding: 2px 8px; border-radius: 8px; }
+  header button:hover { background: #2f2f2f; }
+  #scroll { flex: 1; overflow-y: auto; }
+  #messages { max-width: 768px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 24px; }
+  .msg.user { align-self: flex-end; max-width: 75%; background: #2f2f2f; padding: 10px 18px; border-radius: 22px;
+              white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.bot { display: flex; gap: 14px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #444; display: grid; place-items: center; flex-shrink: 0; }
+  .cursor::after { content: "●"; margin-left: 3px; animation: blink 1s infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  main.empty { justify-content: center; }
+  main.empty header { position: absolute; top: 0; }
+  main.empty #scroll { flex: none; }
+  #welcome { display: none; text-align: center; font-size: 28px; padding: 0 16px 24px; }
+  main.empty #welcome { display: block; }
+
+  form { width: 100%; max-width: 768px; margin: 0 auto; padding: 0 16px; }
+  .box { display: flex; align-items: flex-end; gap: 8px; background: #303030; border-radius: 28px; padding: 10px 10px 10px 20px; }
+  textarea { flex: 1; resize: none; background: none; border: 0; outline: 0; color: inherit; font: inherit; max-height: 200px; padding: 5px 0; }
+  #send { width: 36px; height: 36px; border-radius: 50%; background: #fff; color: #000; font-size: 20px; flex-shrink: 0; }
+  #send:disabled { opacity: .3; cursor: default; }
+  footer { text-align: center; font-size: 12px; color: #9b9b9b; padding: 8px 16px 12px; }
+
+  .chat-row { display: flex; align-items: center; border-radius: 8px; flex-shrink: 0; }
+  .chat-row:hover, .chat-row.active { background: #2a2a2a; }
+  .chat-row .chat-item { flex: 1; min-width: 0; background: none; }
+  .del { opacity: 0; padding: 4px 8px; font-size: 13px; color: #aaa; }
+  .chat-row:hover .del { opacity: 1; }
+  .del:hover { color: #f66; }
+  .actions { display: flex; gap: 4px; margin-top: 4px; }
+  .actions button { padding: 2px 6px; border-radius: 6px; font-size: 14px; color: #aaa; }
+  .actions button:hover { background: #2f2f2f; color: #fff; }
+  .actions button.on { color: #fff; }
+  .thinking { color: #9b9b9b; font-style: italic; animation: blink 1.2s infinite; }
+  #chips { display: none; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 768px; margin: 16px auto 0; padding: 0 16px; }
+  main.empty #chips { display: flex; }
+  .chip { border: 1px solid #424242; border-radius: 20px; padding: 6px 14px; font-size: 14px; color: #cfcfcf; }
+  .chip:hover { background: #2f2f2f; }
+  #send.stop { font-size: 14px; }
+  #headNew { display: none; margin-left: auto; font-size: 18px; }
+  #backdrop { display: none; }
+  @media (max-width: 700px) {
+    aside { position: fixed; inset: 0 auto 0 0; z-index: 3; width: 80vw; max-width: 300px;
+            padding-top: max(12px, env(safe-area-inset-top)); display: flex !important;
+            transform: translateX(-100%); }
+    .ready aside { transition: transform .25s ease; }
+    aside:not(.hidden) { transform: none; box-shadow: 0 0 40px #000a; }
+    #backdrop { display: block; position: fixed; inset: 0; z-index: 2; background: #0008;
+                opacity: 0; pointer-events: none; transition: opacity .25s; }
+    aside:not(.hidden) + #backdrop { opacity: 1; pointer-events: auto; }
+    header { position: sticky; top: 0; z-index: 1; background: #212121; padding-top: max(10px, env(safe-area-inset-top)); }
+    main.empty header { position: absolute; left: 0; right: 0; }
+    header button { padding: 6px 10px; }
+    #headNew { display: block; }
+    #messages { padding: 12px; gap: 20px; }
+    .msg.user { max-width: 85%; }
+    #welcome { font-size: 22px; }
+    #chips { flex-wrap: nowrap; overflow-x: auto; justify-content: flex-start; scrollbar-width: none; }
+    .chip { flex-shrink: 0; }
+    .del { opacity: 1; }
+    .actions button { padding: 6px 8px; }
+    form { padding: 0 10px; }
+    footer { padding-bottom: max(10px, env(safe-area-inset-bottom)); font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<aside id="sidebar">
+  <button class="side-btn" id="newChat">✏️ New chat</button>
+  <div class="label">Chats</div>
+  <div id="history"></div>
+</aside>
+<div id="backdrop"></div>
+
+<main class="empty" id="main">
+  <header><button id="toggle" aria-label="Toggle sidebar">☰</button> CatGPT<button id="headNew" aria-label="New chat">✏️</button></header>
+  <div id="welcome">What can I meow with?</div>
+  <div id="scroll"><div id="messages" aria-live="polite"></div></div>
+  <form id="form">
+    <div class="box">
+      <textarea id="input" rows="1" placeholder="Message CatGPT" aria-label="Message CatGPT" autofocus></textarea>
+      <button id="send" aria-label="Send" disabled>↑</button>
+    </div>
+  </form>
+  <div id="chips">
+    <button class="chip">🐟 Plan my dinner</button>
+    <button class="chip">📦 Is this box for me?</button>
+    <button class="chip">🔴 Explain the red dot</button>
+    <button class="chip">😴 Best nap spots</button>
+  </div>
+  <footer>CatGPT can make mistakes. Meow responsibly. · Made by Anzar Shah</footer>
+</main>
+
+<script>
+// One meow per word you send (at least 1, at most 60)
+function meowFor(text) {
+  const n = Math.min(60, Math.max(1, text.split(/\s+/).filter(Boolean).length));
+  return ("Meow " + "meow ".repeat(n - 1)).trim() + (n > 1 ? "!" : ".");
+}
+const $ = id => document.getElementById(id);
+const input = $("input"), send = $("send"), messages = $("messages");
+
+let chats = [];
+try { chats = JSON.parse(localStorage.getItem("catgpt-chats")) || []; } catch {}
+let current = null; // null = unsaved new chat
+
+const save = () => { try { localStorage.setItem("catgpt-chats", JSON.stringify(chats)); } catch {} };
+const scrollDown = () => $("scroll").scrollTop = $("scroll").scrollHeight;
+
+function addMessage(role, text) {
+  const el = document.createElement("div");
+  el.className = "msg " + role;
+  let body = el;
+  if (role === "bot") {
+    el.innerHTML = '<div class="avatar">🐱</div><div><div></div></div>';
+    body = el.lastChild.firstChild;
+    if (text) addActions(el.lastChild, text);
+  }
+  body.textContent = text;
+  messages.append(el);
+  scrollDown();
+  return body;
+}
+
+function addActions(wrap, REPLY) {
+  const bar = document.createElement("div");
+  bar.className = "actions";
+  const mk = (label, title, fn) => {
+    const b = document.createElement("button");
+    b.textContent = label; b.title = title; b.setAttribute("aria-label", title);
+    b.onclick = () => fn(b);
+    bar.append(b);
+  };
+  mk("⧉", "Copy", b => { navigator.clipboard?.writeText(REPLY); b.textContent = "✓"; setTimeout(() => b.textContent = "⧉", 1200); });
+  mk("🔊", "Read aloud", () => { speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance(REPLY)); });
+  mk("👍", "Good response", b => b.classList.toggle("on"));
+  mk("👎", "Bad response", b => { b.classList.toggle("on"); b.title = "The cat does not care"; });
+  wrap.append(bar);
+}
+
+function render() {
+  messages.replaceChildren();
+  $("main").classList.toggle("empty", !current);
+  current?.messages.forEach(m => addMessage(m.role, m.text));
+  $("history").replaceChildren(...chats.map(chat => {
+    const row = document.createElement("div");
+    row.className = "chat-row" + (chat === current ? " active" : "");
+    const b = document.createElement("button");
+    b.className = "chat-item";
+    b.textContent = chat.title;
+    b.onclick = () => open(chat);
+    const d = document.createElement("button");
+    d.className = "del"; d.textContent = "🗑"; d.title = "Delete chat"; d.setAttribute("aria-label", "Delete chat");
+    d.onclick = () => {
+      if (!confirm("Delete this chat?")) return;
+      chats = chats.filter(c => c !== chat); save();
+      chat === current ? open(null) : render();
+    };
+    row.append(b, d);
+    return row;
+  }));
+}
+
+let timer = null;
+function stop() {
+  clearInterval(timer); clearTimeout(timer); // the full reply is already saved
+  timer = null;
+}
+function open(chat) {
+  stop();
+  current = chat;
+  render();
+  update();
+  if (innerWidth <= 700) $("sidebar").classList.add("hidden");
+  input.focus();
+}
+
+function update() {
+  const busy = timer !== null;
+  send.disabled = !busy && !input.value.trim();
+  send.textContent = busy ? "■" : "↑";
+  send.classList.toggle("stop", busy);
+  send.setAttribute("aria-label", busy ? "Stop" : "Send");
+  input.style.height = "auto";
+  input.style.height = input.scrollHeight + "px";
+}
+
+$("form").onsubmit = e => {
+  e.preventDefault();
+  const text = input.value.trim();
+  if (timer !== null) { // stop button: finish the reply instantly
+    stop(); render(); update(); return;
+  }
+  if (!text) return;
+  if (!current) chats.unshift(current = { title: text.slice(0, 40), messages: [] });
+  current.messages.push({ role: "user", text });
+  render();
+  const REPLY = meowFor(text);
+  current.messages.push({ role: "bot", text: REPLY });
+  save();
+
+  // Think for a moment, then type the reply out word by word
+  const body = addMessage("bot", "");
+  body.textContent = "Purring…";
+  body.className = "thinking";
+  timer = setTimeout(() => {
+    body.textContent = "";
+    body.className = "cursor";
+    const words = REPLY.split(" ");
+    let i = 0;
+    timer = setInterval(() => {
+      body.textContent = words.slice(0, ++i).join(" ");
+      scrollDown();
+      if (i === words.length) {
+        stop();
+        body.className = "";
+        addActions(body.parentNode, REPLY);
+        update();
+      }
+    }, 250);
+  }, 700 + Math.random() * 600);
+
+  input.value = "";
+  update();
+};
+
+input.oninput = update;
+input.onkeydown = e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+    e.preventDefault();
+    $("form").requestSubmit();
+  }
+};
+$("newChat").onclick = $("headNew").onclick = () => open(null);
+$("backdrop").onclick = () => $("sidebar").classList.add("hidden");
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => {
+  input.value = c.textContent.slice(2).trim();
+  $("form").requestSubmit();
+});
+document.onkeydown = e => { // Cmd/Ctrl+Shift+O = new chat, like ChatGPT
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "o") { e.preventDefault(); open(null); }
+};
+$("toggle").onclick = () => $("sidebar").classList.toggle("hidden");
+
+if (innerWidth <= 700) $("sidebar").classList.add("hidden");
+render();
+requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add("ready")));
+</script>
+</body>
+</html>
